@@ -1,1 +1,4 @@
-# SpringBreak2026
+# PS-3 SpringBreak2026
+Build a JS Node Express App to plan a ski trip to Vail over MIT Spring Break using the latest @OpenAI/Agents library to leverage Agents. The itinerary should include air travel, car rental and hotel as well as costs. The Agent should interface with the user to confirm the item. Web Search tool should be provided. The item should be placed in the itinerary and the final itinerary displaced for final confirmation. At this stage nothing should be purchased.
+
+Now generalize this so that any vacation can be planned when the user inputs information about time and length of vacation, start city, destination, length of stay, events or hobbies the user likes to attend, weather preferences, hotel type ( 4 or 5 star).  Have agents consider safety concerns, what to pack etc. Test this out on a vist to Paris, Milan, Madrid, Taipei, Hong Kong or London. 
