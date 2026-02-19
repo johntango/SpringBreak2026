@@ -1,0 +1,161 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #f7f8fb;
+  color: #1f2937;
+}
+
+.container {
+  max-width: 980px;
+  margin: 24px auto;
+  padding: 0 16px 24px;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  margin: 0 0 12px;
+}
+
+p {
+  margin-top: 0;
+}
+
+.card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+}
+
+input,
+select,
+button {
+  font: inherit;
+  padding: 8px;
+}
+
+button {
+  cursor: pointer;
+  border: 1px solid #4b5563;
+  background: #111827;
+  color: #fff;
+  border-radius: 8px;
+}
+
+button.secondary {
+  background: #fff;
+  color: #111827;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.hidden {
+  display: none;
+}
+
+.component-options {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.option {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.muted {
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.inline {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.list {
+  margin: 0;
+  padding-left: 18px;
+}
+
+#activity-list {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+#tool-monitor-list {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.activity-item {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.activity-time {
+  color: #6b7280;
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.activity-summary {
+  margin-top: 6px;
+  color: #374151;
+  font-size: 13px;
+}
+
+.activity-item details {
+  margin-top: 6px;
+}
+
+.activity-item summary {
+  cursor: pointer;
+  color: #111827;
+  font-size: 13px;
+}
+
+.activity-item pre {
+  margin: 6px 0 0;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+}

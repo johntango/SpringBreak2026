@@ -1,0 +1,416 @@
+const form = document.getElementById("trip-form");
+const itinerarySection = document.getElementById("itinerary");
+const messagesSection = document.getElementById("messages");
+const activitySection = document.getElementById("activity");
+const activityList = document.getElementById("activity-list");
+const toolMonitorSection = document.getElementById("tool-monitor");
+const toolMonitorList = document.getElementById("tool-monitor-list");
+
+const TOOL_MONITOR_TYPES = new Set([
+  "tool_call_started",
+  "tool_call_completed",
+  "web_search_called",
+  "web_search_output",
+  "tool_called",
+  "tool_output"
+]);
+
+let currentPlan = null;
+
+form.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  const payload = formToPayload(new FormData(form));
+  const submitButton = form.querySelector("button[type='submit']");
+  submitButton.disabled = true;
+  resetTimeline();
+  itinerarySection.classList.add("hidden");
+  setMessage("Generating itinerary with agents...");
+
+  try {
+    const data = await streamPlan(payload);
+
+    currentPlan = data;
+    setMessage("Draft itinerary created. Please confirm each component.");
+    renderItinerary(currentPlan);
+  } catch (error) {
+    setMessage(error.message || "Unexpected error", true);
+  } finally {
+    submitButton.disabled = false;
+  }
+});
+
+async function streamPlan(payload) {
+  const response = await fetch("/api/plan-stream", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    const data = await safeJson(response);
+    throw new Error(apiErrorMessage(data, "Failed to generate itinerary"));
+  }
+
+  if (!response.body) {
+    throw new Error("Streaming response body is unavailable.");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let pending = "";
+  let finalResult = null;
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+
+    pending += decoder.decode(value, { stream: true });
+    const chunks = pending.split("\n\n");
+    pending = chunks.pop() || "";
+
+    for (const chunk of chunks) {
+      const event = parseSseChunk(chunk);
+      if (!event) continue;
+
+      if (event.name === "activity") {
+        addActivity(event.data);
+      }
+
+      if (event.name === "result") {
+        finalResult = event.data;
+      }
+
+      if (event.name === "error") {
+        throw new Error(apiErrorMessage(event.data, "Failed to generate itinerary"));
+      }
+    }
+  }
+
+  if (!finalResult) {
+    throw new Error("Planning stream ended without itinerary result.");
+  }
+
+  return finalResult;
+}
+
+function parseSseChunk(chunk) {
+  const lines = chunk
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (!lines.length) return null;
+
+  let name = "message";
+  const dataLines = [];
+
+  for (const line of lines) {
+    if (line.startsWith("event:")) {
+      name = line.slice(6).trim();
+      continue;
+    }
+    if (line.startsWith("data:")) {
+      dataLines.push(line.slice(5).trim());
+    }
+  }
+
+  const raw = dataLines.join("\n");
+  let data = raw;
+  try {
+    data = raw ? JSON.parse(raw) : null;
+  } catch {
+    data = { message: raw };
+  }
+
+  return { name, data };
+}
+
+function resetTimeline() {
+  activitySection.classList.remove("hidden");
+  activityList.innerHTML = "";
+  toolMonitorSection.classList.remove("hidden");
+  toolMonitorList.innerHTML = "";
+}
+
+function addActivity(eventData) {
+  const event = eventData ?? {};
+  const eventType = event.type || "activity";
+  const title = event.agent
+    ? `[${eventType}] ${event.agent}: ${event.message || "Update"}`
+    : `[${eventType}] ${event.message || "Update"}`;
+
+  const item = document.createElement("li");
+  item.className = "activity-item";
+
+  const time = new Date().toLocaleTimeString();
+  const summary = event.summary ? `<div class="activity-summary">${escapeHtml(JSON.stringify(event.summary))}</div>` : "";
+  const details = [
+    renderDetailBlock("Tool Source", event.source),
+    renderDetailBlock("Tool Family", event.toolFamily),
+    renderDetailBlock("Tool Phase", event.phase),
+    renderDetailBlock("Prompt", event.prompt),
+    renderDetailBlock("Response", event.response),
+    renderDetailBlock("Tool Arguments", event.arguments),
+    renderDetailBlock("Tool Output", event.output),
+    renderDetailBlock("Raw LLM Run Item", event.rawItem),
+    renderDetailBlock("Full Event JSON", safeStringify(event))
+  ]
+    .filter(Boolean)
+    .join("");
+
+  item.innerHTML = `
+    <div class="activity-time">${escapeHtml(time)} • ${escapeHtml(event.stage || "general")}</div>
+    <div>${escapeHtml(title)}</div>
+    ${summary}
+    ${details}
+  `;
+
+  activityList.appendChild(item);
+
+  if (TOOL_MONITOR_TYPES.has(eventType)) {
+    addToolMonitorItem(event);
+  }
+}
+
+function addToolMonitorItem(event) {
+  const item = document.createElement("li");
+  item.className = "activity-item";
+
+  const time = new Date().toLocaleTimeString();
+  const title = `[${event.type || "tool"}] ${event.toolName || "unknown_tool"}`;
+
+  const details = [
+    renderDetailBlock("Agent", event.agent),
+    renderDetailBlock("Stage", event.stage),
+    renderDetailBlock("Source", event.source),
+    renderDetailBlock("Family", event.toolFamily),
+    renderDetailBlock("Phase", event.phase),
+    renderDetailBlock("Arguments", event.arguments),
+    renderDetailBlock("Output", event.output),
+    renderDetailBlock("Raw Item", event.rawItem),
+    renderDetailBlock("Full Event JSON", safeStringify(event))
+  ]
+    .filter(Boolean)
+    .join("");
+
+  item.innerHTML = `
+    <div class="activity-time">${escapeHtml(time)}</div>
+    <div>${escapeHtml(title)}</div>
+    ${details}
+  `;
+
+  toolMonitorList.appendChild(item);
+}
+
+function renderDetailBlock(label, value) {
+  if (!value) return "";
+  return `<details><summary>${escapeHtml(label)}</summary><pre>${escapeHtml(String(value))}</pre></details>`;
+}
+
+function safeStringify(value) {
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
+function formToPayload(formData) {
+  return {
+    startCity: String(formData.get("startCity") || "").trim(),
+    destinationCity: String(formData.get("destinationCity") || "").trim(),
+    startDate: String(formData.get("startDate") || "").trim(),
+    endDate: String(formData.get("endDate") || "").trim(),
+    tripLengthDays: Number(formData.get("tripLengthDays")),
+    activities: String(formData.get("activities") || "")
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean),
+    weatherPreferences: String(formData.get("weatherPreferences") || "").trim(),
+    airTravelClass: String(formData.get("airTravelClass") || "economy"),
+    hotelStars: String(formData.get("hotelStars") || "3"),
+    transportationNotes: String(formData.get("transportationNotes") || "").trim() || undefined
+  };
+}
+
+function setMessage(message, isError = false) {
+  messagesSection.classList.remove("hidden");
+  messagesSection.innerHTML = `<p class="${isError ? "" : "muted"}">${escapeHtml(message)}</p>`;
+}
+
+function renderItinerary(planData) {
+  const itinerary = planData.itinerary;
+  itinerarySection.classList.remove("hidden");
+
+  itinerarySection.innerHTML = `
+    <h2>Itinerary Draft</h2>
+    <p>${escapeHtml(itinerary.tripSummary)}</p>
+    <p class="muted">${escapeHtml(itinerary.disclaimer || "")}</p>
+    <div id="components"></div>
+    <h3>Activities</h3>
+    ${renderActivityList(itinerary.activities || [])}
+    <h3>Safety Concerns</h3>
+    ${renderSimpleList(itinerary.safetyConcerns || [])}
+    <h3>Packing List</h3>
+    ${renderSimpleList(itinerary.packingList || [])}
+    <h3>Estimated Cost Summary (USD)</h3>
+    <pre>${escapeHtml(JSON.stringify(itinerary.estimatedCostSummary, null, 2))}</pre>
+    <div id="final-review"></div>
+  `;
+
+  const componentsRoot = document.getElementById("components");
+  ["flight", "hotel", "carRental"].forEach((componentType) => {
+    const component = itinerary.components?.[componentType];
+    if (!component) return;
+
+    const block = document.createElement("section");
+    block.className = "card";
+
+    const optionsHtml = (component.options || [])
+      .map(
+        (option) => `
+          <label class="option">
+            <div class="inline">
+              <input type="radio" name="${componentType}-option" value="${escapeHtml(option.id)}" ${
+          option.id === component.recommendedOptionId ? "checked" : ""
+        } />
+              <strong>${escapeHtml(option.label || option.id)}</strong>
+            </div>
+            <div class="muted">${escapeHtml(option.notes || "")}</div>
+            <pre>${escapeHtml(JSON.stringify(option, null, 2))}</pre>
+          </label>
+        `
+      )
+      .join("");
+
+    block.innerHTML = `
+      <h3>${escapeHtml(componentType)}</h3>
+      <p>${escapeHtml(component.confirmationQuestion || "Please confirm this option")}</p>
+      <div class="component-options">${optionsHtml}</div>
+      <button data-component="${componentType}" class="confirm-btn">Confirm ${escapeHtml(componentType)}</button>
+    `;
+
+    componentsRoot.appendChild(block);
+  });
+
+  attachConfirmHandlers(planData.itineraryId);
+  maybeRenderFinalAction(planData);
+}
+
+function attachConfirmHandlers(itineraryId) {
+  document.querySelectorAll(".confirm-btn").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const componentType = button.getAttribute("data-component");
+      const selectedRadio = document.querySelector(`input[name="${componentType}-option"]:checked`);
+      if (!selectedRadio) {
+        setMessage(`Select an option for ${componentType} first.`, true);
+        return;
+      }
+
+      button.disabled = true;
+
+      try {
+        const response = await fetch("/api/confirm-component", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            itineraryId,
+            componentType,
+            optionId: selectedRadio.value
+          })
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(apiErrorMessage(data, "Failed to confirm component"));
+        }
+
+        if (!data.nextComponentToConfirm) {
+          setMessage("All components confirmed. Please review final summary.");
+          maybeRenderFinalAction({ ...currentPlan, finalReview: data.finalReview });
+        } else {
+          setMessage(`Confirmed ${componentType}. Next: confirm ${data.nextComponentToConfirm}.`);
+        }
+      } catch (error) {
+        button.disabled = false;
+        setMessage(error.message || "Unexpected confirmation error", true);
+      }
+    });
+  });
+}
+
+function maybeRenderFinalAction(planData) {
+  const finalReviewRoot = document.getElementById("final-review");
+  if (!finalReviewRoot) return;
+
+  if (!planData.finalReview) {
+    finalReviewRoot.innerHTML = "";
+    return;
+  }
+
+  finalReviewRoot.innerHTML = `
+    <h3>Final Review</h3>
+    <p>${escapeHtml(planData.finalReview.finalSummary || "")}</p>
+    <p><strong>${escapeHtml(planData.finalReview.finalConfirmationQuestion || "Confirm final itinerary?")}</strong></p>
+    <p class="muted">${escapeHtml(planData.finalReview.purchaseReminder || "No purchases are made")}</p>
+    <button id="final-approve">Approve Final Itinerary</button>
+  `;
+
+  const approveButton = document.getElementById("final-approve");
+  approveButton?.addEventListener("click", async () => {
+    try {
+      const response = await fetch("/api/final-confirmation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itineraryId: currentPlan.itineraryId, approved: true })
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(apiErrorMessage(data, "Final confirmation failed"));
+      }
+      setMessage(data.message);
+    } catch (error) {
+      setMessage(error.message || "Unexpected final confirmation error", true);
+    }
+  });
+}
+
+function renderSimpleList(items) {
+  if (!items.length) return "<p class=\"muted\">No items.</p>";
+  return `<ul class=\"list\">${items.map((item) => `<li>${escapeHtml(String(item))}</li>`).join("")}</ul>`;
+}
+
+function renderActivityList(items) {
+  if (!items.length) return "<p class=\"muted\">No activities.</p>";
+  const rows = items
+    .map((activity) => {
+      const line = `${activity.scheduledDay || "Day"}: ${activity.name || "Activity"} ($${activity.estimatedCostUsd || 0})`;
+      return `<li>${escapeHtml(line)}</li>`;
+    })
+    .join("");
+  return `<ul class=\"list\">${rows}</ul>`;
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function apiErrorMessage(data, fallback) {
+  if (!data) return fallback;
+  const parts = [data.error, data.details].filter(Boolean);
+  return parts.length ? parts.join(": ") : fallback;
+}
+
+async function safeJson(response) {
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "name": "spring-break-2026-trip-agent",
+  "version": "1.0.0",
+  "description": "Node + Express app that uses OpenAI Agents to plan trips over MIT Spring Break",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "dev": "nodemon server.js",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@openai/agents": "^0.2.0",
+    "dotenv": "^16.6.1",
+    "express": "^4.21.2",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}

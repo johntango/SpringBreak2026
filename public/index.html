@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MIT Spring Break Trip Planner</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="container">
+      <h1>MIT Spring Break Trip Planner</h1>
+      <p>
+        Create a trip plan using OpenAI Agents. Nothing is purchased in this
+        app.
+      </p>
+
+      <form id="trip-form" class="card">
+        <h2>Trip Inputs</h2>
+        <div class="grid">
+          <label
+            >Start City
+            <input
+              name="startCity"
+              required
+              placeholder="Boston"
+              value="Boston"
+          /></label>
+          <label
+            >Destination City
+            <input
+              name="destinationCity"
+              required
+              placeholder="Paris"
+              value="Paris"
+          /></label>
+          <label
+            >Start Date
+            <input name="startDate" type="date" required value="2026-03-21"
+          /></label>
+          <label
+            >End Date
+            <input name="endDate" type="date" required value="2026-03-29"
+          /></label>
+          <label
+            >Trip Length (days)
+            <input
+              name="tripLengthDays"
+              type="number"
+              min="1"
+              required
+              value="8"
+          /></label>
+          <label
+            >Activities (comma-separated)
+            <input
+              name="activities"
+              required
+              value="museums, cafes, walking tours"
+              placeholder="museums, skiing, food tours"
+            />
+          </label>
+          <label
+            >Weather Preferences
+            <input
+              name="weatherPreferences"
+              required
+              value="mild and mostly dry"
+              placeholder="cool and dry"
+          /></label>
+          <label
+            >Air Travel Class
+            <select name="airTravelClass" required>
+              <option value="economy">economy</option>
+              <option value="business">business</option>
+            </select>
+          </label>
+          <label
+            >Hotel Stars
+            <select name="hotelStars" required>
+              <option value="3">3</option>
+              <option value="4" selected>4</option>
+              <option value="5">5</option>
+            </select>
+          </label>
+          <label
+            >Transportation Notes
+            <input
+              name="transportationNotes"
+              value="Prefer central location and easy transit access"
+              placeholder="I prefer train or car"
+            />
+          </label>
+        </div>
+        <button type="submit">Generate Itinerary Draft</button>
+      </form>
+
+      <section id="activity" class="card hidden">
+        <h2>Agent Activity Timeline</h2>
+        <ul id="activity-list" class="list"></ul>
+      </section>
+
+      <section id="tool-monitor" class="card hidden">
+        <h2>Tool Monitor</h2>
+        <p class="muted">
+          Tracks standardized tool lifecycle events for built-in and custom
+          tools.
+        </p>
+        <ul id="tool-monitor-list" class="list"></ul>
+      </section>
+
+      <section id="messages" class="card hidden"></section>
+      <section id="itinerary" class="card hidden"></section>
+    </main>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
