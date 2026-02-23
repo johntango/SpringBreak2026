@@ -56,12 +56,13 @@ The app:
    ```
 
 2. Configure environment variables:
+   Put the secret key in the Github Secrets. The code should pick up the Secret
+   However, if you want to run on your own machine then you cand do the following.
 
    ```bash
    cp .env.example .env
    ```
-
-3. Edit `.env` and set your API key:
+  Edit `.env` and set your API key:
 
    ```
    OPENAI_API_KEY=...
